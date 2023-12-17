@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { pinJSONToIPFS } from "../components/utils/pinata.js";
 
 import { Colors } from '../components/Cattributes/Colors';
+import Web3 from 'web3';
 import { Attributes } from '../components/Cattributes/Attributes';
 import { ethers } from "ethers";
+import { useAccount } from "wagmi";
 import { Cat } from '../components/Cattributes/Cat';
 import Marketplace from "./artifacts/contracts/KittyCore.sol/KittyCore.json"
 import NumericInput from 'react-numeric-input';
@@ -36,6 +38,8 @@ export default function kfactory() {
     };
     const [tab, setTab] = useState(0)
     const [jsonObject, setJsonObject] = useState(defaultDNA);
+    const { address, isConnected } = useAccount();
+    const [networkId, setNetworkId] = useState();
     const [price, setPrice] = useState();
     const [name, setName] = useState();
     const [isLoading, setIsLoading] = useState(false);
@@ -94,7 +98,7 @@ export default function kfactory() {
         let listingPrice = await contract.getListPrice()
         listingPrice = parseInt(listingPrice.toString()) / Math.pow(10, 18)
         const listPrice = ethers.utils.parseUnits((listingPrice / jsonObject.generation).toFixed(6), 'ether')
-            //make metadata
+        //make metadata
         const metadata = new Object();
         metadata.dna = parseInt(dna);
         metadata.name = name;
@@ -150,15 +154,24 @@ export default function kfactory() {
     };
 
     useEffect(() => {
-        async function getLimit() {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const signer = provider.getSigner();
-            let contract = new ethers.Contract(contractAddress, Marketplace.abi, signer)
-            const limit = await contract.getGenerationLimit()
-            setGenerationLimit(limit)
+        async function getNetwork() {
+            const web3 = new Web3(window.ethereum);
+            const networkId = await web3.eth.net.getId();
+            setNetworkId(networkId);
         }
-        getLimit()
-    }, []);
+        async function getLimit() {
+            if (networkId === 11155111n) {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                let contract = new ethers.Contract(contractAddress, Marketplace.abi, signer)
+                const limit = await contract.getGenerationLimit()
+                setGenerationLimit(limit)
+            }
+        }
+
+        getNetwork();
+        getLimit();
+    }, [networkId]);
     return (
         <>
             <div className="animation-wrapper">
@@ -166,77 +179,81 @@ export default function kfactory() {
             </div>
             <div className="cursor"></div>
             <div className="shadow-cursor"></div>
-            <div className="flex flex-col p-5">
-                <div align="center">
-                    <h1 className="c-white">Kitties-Factory</h1>
-                    <p className="c-white">Create your custom Kitty</p>
-                </div>
-                <div className="flex flex-wrap">
-                    <div className="relative flex flex-col bg-emerald-100 p-12 rounded-lg">
-                        <Cat data={jsonObject} />
-                        <div className='absolute bottom-0'>
-                            <p className='font-serif text-lg font-bold'>
-                                DNA:
-                                {/* <!-- Colors --> */}
-                                <span id="dnabody"> {jsonObject.headBodyColor}</span>
-                                <span id="dnamouth"> {jsonObject.bodyColor}</span>
-                                <span id="dnaeyes"> {jsonObject.eyesColor}</span>
-                                <span id="dnaears"> {jsonObject.earsPawColor}</span>
-                                {/* <!-- Cattributes --> */}
-                                <span id="dnashape"> {jsonObject.eyeShape}</span>
-                                <span id="dnadecoration"> {jsonObject.decorationPattern}</span>
-                                <span id="dnadecorationMid"> {jsonObject.middleColor}</span>
-                                <span id="dnadecorationSides"> {jsonObject.sidesColor}</span>
-                                <span id="dnadanimation"> {jsonObject.animation}</span>
-                            </p>
-                        </div>
+            {address == undefined || networkId !== 11155111n ? <div className="flex justify-center text-2xl font-semibold mb-5">Connect to Sepolia Test Network</div> : isLoading ?
+                <div className="flex flex-1 justify-end items-center">
+                    <div className="px-3 py-1 text-xs font-medium leading-none text-center text-blue-800 bg-blue-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</div>
+                </div> :
+                <div className="flex flex-col p-5">
+                    <div align="center">
+                        <h1 className="c-white">Kitties-Factory</h1>
+                        <p className="c-white">Create your custom Kitty</p>
                     </div>
-                    <div className="flex flex-1 flex-col cattributes">
-                        <div className="btn-group mb-3">
-                            <button className="btn btn-primary  tsp-1 m-1 light-b-shadow" onClick={() => setTab(0)}><b>Colors</b></button>
-                            <button className="btn btn-primary  ml-2 tsp-1 m-1 light-b-shadow" onClick={() => setTab(1)} ><b>Cattributes</b></button>
-                        </div>
-
-                        {tab == 0 ? <Colors data={jsonObject} updateField={updateField} /> :
-                            <Attributes data={jsonObject} updateField={updateField} />}
-                    </div>
-
-                </div>
-                {/* <br> */}
-                <div className='flex flex-wrap my-8'>
-                    <div className='pr-4'>
-                        <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Name</label>
-                        <input type="text" id="small-input" placeholder='Enter your kitty name' onChange={handleNameChange} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
-                    </div>
-                    <div className=''>
-                        <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Price in ETH</label>
-                        <NumericInput id="small-input" placeholder='min ETH is 0.01' step={0.00001} precision={5} min={0.00001} max={1000} onChange={handlePriceChange} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
-                    </div>
-                    <div className=' pl-4'>
-                        <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Generation</label>
-                        {generationLimit ? <NumericInput id="small-input" placeholder='List price = 1/level' step={1} min={1} value={jsonObject.generation} max={generationLimit} onChange={(event) => updateField("generation", parseInt(event))} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" /> : null}
-                    </div>
-                </div>
-                <div className='flex flex-wrap'>
                     <div className="flex flex-wrap">
-                        <button className="btn btn-primary  tsp-1 m-1 light-b-shadow" onClick={getRandom}><b>Get random kitty</b></button>
-                        <button className="btn btn-primary  ml-2 tsp-1 m-1 light-b-shadow" onClick={getDefault}><b>Default kitty</b></button>
-                    </div>
-                    {
-                        isLoading ?
-                            <div className="flex flex-1 justify-end items-center">
-                                <div className="px-3 py-1 text-xs font-medium leading-none text-center text-blue-800 bg-blue-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</div>
-                            </div> :
-                            <div className="flex flex-1 justify-start items-center sm:justify-end">
-                                {error && <p style={{ color: 'red' }}>{error}</p>}
-                                <button className="btn btn-success mr-5  tsp-1 m-1 light-b-shadow" onClick={mintNFT}><b>Create Kitty</b></button>
+                        <div className="relative flex flex-col bg-emerald-100 p-12 rounded-lg">
+                            <Cat data={jsonObject} />
+                            <div className='absolute bottom-0'>
+                                <p className='font-serif text-lg font-bold'>
+                                    DNA:
+                                    {/* <!-- Colors --> */}
+                                    <span id="dnabody"> {jsonObject.headBodyColor}</span>
+                                    <span id="dnamouth"> {jsonObject.bodyColor}</span>
+                                    <span id="dnaeyes"> {jsonObject.eyesColor}</span>
+                                    <span id="dnaears"> {jsonObject.earsPawColor}</span>
+                                    {/* <!-- Cattributes --> */}
+                                    <span id="dnashape"> {jsonObject.eyeShape}</span>
+                                    <span id="dnadecoration"> {jsonObject.decorationPattern}</span>
+                                    <span id="dnadecorationMid"> {jsonObject.middleColor}</span>
+                                    <span id="dnadecorationSides"> {jsonObject.sidesColor}</span>
+                                    <span id="dnadanimation"> {jsonObject.animation}</span>
+                                </p>
                             </div>
-                    }
+                        </div>
+                        <div className="flex flex-1 flex-col cattributes">
+                            <div className="btn-group mb-3">
+                                <button className="btn btn-primary  tsp-1 m-1 light-b-shadow" onClick={() => setTab(0)}><b>Colors</b></button>
+                                <button className="btn btn-primary  ml-2 tsp-1 m-1 light-b-shadow" onClick={() => setTab(1)} ><b>Cattributes</b></button>
+                            </div>
 
-                    <div id="message" align="center"></div>
+                            {tab == 0 ? <Colors data={jsonObject} updateField={updateField} /> :
+                                <Attributes data={jsonObject} updateField={updateField} />}
+                        </div>
 
-                </div>
-            </div>
+                    </div>
+                    {/* <br> */}
+                    <div className='flex flex-wrap my-8'>
+                        <div className='pr-4'>
+                            <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Name</label>
+                            <input type="text" id="small-input" placeholder='Enter your kitty name' onChange={handleNameChange} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+                        </div>
+                        <div className=''>
+                            <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Price in ETH</label>
+                            <NumericInput id="small-input" placeholder='min ETH is 0.00001' step={0.00001} precision={5} min={0.00001} max={1000} onChange={handlePriceChange} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+                        </div>
+                        <div className=' pl-4'>
+                            <label htmlFor="small-input" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Generation</label>
+                            {generationLimit ? <NumericInput id="small-input" placeholder='List price = 1/level' step={1} min={1} value={jsonObject.generation} max={parseInt(generationLimit)} onChange={(event) => updateField("generation", parseInt(event))} className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 sm:text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" /> : null}
+                        </div>
+                    </div>
+                    <div className='flex flex-wrap'>
+                        <div className="flex flex-wrap">
+                            <button className="btn btn-primary  tsp-1 m-1 light-b-shadow" onClick={getRandom}><b>Get random kitty</b></button>
+                            <button className="btn btn-primary  ml-2 tsp-1 m-1 light-b-shadow" onClick={getDefault}><b>Default kitty</b></button>
+                        </div>
+                        {
+                            isLoading ?
+                                <div className="flex flex-1 justify-end items-center">
+                                    <div className="px-3 py-1 text-xs font-medium leading-none text-center text-blue-800 bg-blue-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</div>
+                                </div> :
+                                <div className="flex flex-1 justify-start items-center sm:justify-end">
+                                    {error && <p style={{ color: 'red' }}>{error}</p>}
+                                    <button className="btn btn-success mr-5  tsp-1 m-1 light-b-shadow" onClick={mintNFT}><b>Create Kitty</b></button>
+                                </div>
+                        }
+
+                        <div id="message" align="center"></div>
+
+                    </div>
+                </div>}
         </>
     );
 }

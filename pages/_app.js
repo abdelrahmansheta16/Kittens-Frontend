@@ -26,8 +26,8 @@ const { chains, publicClient } = configureChains(
 );
 
 const { connectors } = getDefaultWallets({
-	appName: 'Dapp',
-	projectId: process.env.NEXT_PUBLIC_CONNECT_WALLET_ID,
+	appName: 'dapp',
+	projectId: 'e73f3ea9eefe3c9014dca96679a204c8',
 	chains
 });
 
